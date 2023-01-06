@@ -1,0 +1,173 @@
+/*
+Cleaning Data ini SQL Queries
+
+*/
+Select *
+From Covid_Research..Nashville
+
+--Standardize Date Format
+
+Select SaleDateConverted, Convert(Date,SaleDate)
+From Covid_Research..Nashville
+
+Update Nashville
+Set SaleDate = Convert(date,saledate)
+
+ALTER TABLE covid_research..Nashville
+Add SaleDateConverted Date;
+
+Update Covid_Research..Nashville
+Set SaleDateConverted = Convert(date,SaleDate)
+
+
+--------------------------------------------------------------
+--Populate Property Address Data
+Select *
+From Covid_Research..Nashville
+where PropertyAddress is null
+order by ParcelID
+
+Select a.ParcelID,a.PropertyAddress, b.ParcelID,b.PropertyAddress, isnull(a.propertyaddress, b.PropertyAddress)
+From Covid_Research..Nashville a
+join Covid_Research..Nashville b
+     on a.ParcelID= b.ParcelID
+	 and a.[UniqueID ] <> b.[UniqueID ]
+Where a.PropertyAddress is null
+
+Update a
+SET PropertyAddress =  ISNULL(a.PropertyAddress, b.PropertyAddress)
+From Covid_Research..Nashville a
+join Covid_Research..Nashville b
+     on a.ParcelID= b.ParcelID
+	 and a.[UniqueID ] <> b.[UniqueID ]
+Where a.PropertyAddress is null
+
+------------------------------------------------
+--Breaking Out Address into individual columns (Address, City,State)
+
+Select PropertyAddress
+From Covid_Research..Nashville
+--where PropertyAddress is null
+--order by ParcelID
+
+
+-- This returns the address before the delimiter (Charindex points the index of delimiter,-1 to avoid it in the result
+SELECT
+SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1) AS Address 
+,SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) +1, LEN(PropertyAddress)) as Address
+From Covid_Research..Nashville
+
+--Inserting these two columns into the table
+ALTER TABLE covid_research..Nashville
+Add PropertySplitAddress Nvarchar(255);
+
+Update Covid_Research..Nashville
+Set PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1)
+
+
+ALTER TABLE covid_research..Nashville
+Add PropertySplitCity Nvarchar(255);
+
+Update Covid_Research..Nashville
+Set PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) +1, LEN(PropertyAddress))
+
+Select *
+From Covid_Research..Nashville
+
+
+--Using Parsename for splitting address
+Select OwnerAddress
+From Covid_research..Nashville
+
+Select
+PARSENAME(REPLACE(OwnerAddress,',','.'),3),
+PARSENAME(REPLACE(OwnerAddress,',','.'),2),
+PARSENAME(REPLACE(OwnerAddress,',','.'),1)
+From Covid_Research..Nashville
+
+
+
+--Inserting these two columns into the table
+ALTER TABLE covid_research..Nashville
+Add OwnerSplitAddress Nvarchar(255);
+
+Update Covid_Research..Nashville
+Set OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress,',','.'),3)
+
+
+
+ALTER TABLE covid_research..Nashville
+Add OwnerSplitCity Nvarchar(255);
+
+Update Covid_Research..Nashville
+Set OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress,',','.'),2)
+
+
+ALTER TABLE covid_research..Nashville
+Add OwnerSplitState Nvarchar(255);
+
+Update Covid_Research..Nashville
+Set OwnerSplitState = PARSENAME(REPLACE(OwnerAddress,',','.'),1)
+
+Select *
+from Covid_Research..Nashville
+
+-------------------------------------------------------------------------------------------------------------------------
+
+--Change Y and N in "Sold as Vacant" field
+
+Select Distinct(SoldAsVacant), Count(SoldAsVacant)
+from Covid_Research..Nashville
+Group by SoldAsVacant
+order by 2
+
+Select SoldAsVacant, Case When SoldasVacant = 'Y' THEN 'YES'
+WHEN SoldasVacant = 'N' THEN 'NO'
+ELSE SoldAsVacant
+END
+FROM Covid_Research..Nashville
+
+UPDATE Nashville
+SET SoldAsVacant=Case When SoldasVacant = 'Y' THEN 'YES'
+WHEN SoldasVacant = 'N' THEN 'NO'
+ELSE SoldAsVacant
+END
+FROM Covid_Research..Nashville
+
+------------------------------------
+--Remove Duplicates
+WITH RowNumCTE AS(
+Select *,
+   ROW_NUMBER() OVER(
+   PARTITION BY PARCELID,
+                PropertyAddress,
+				SalePrice,
+				SaleDate,
+				LegalReference
+				ORDER BY
+				    UniqueID
+					) row_num
+            
+From Covid_Research..Nashville
+--Order By ParcelID
+)
+Select *
+From RowNumCTE
+Where row_num>1
+Order by PropertyAddress
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+--Delete Unused Columns
+
+Select *
+From Covid_Research..Nashville
+
+ALTER TABLE Covid_Research..Nashville
+DROP COLUMN OwnerAddress, TaxDistrict,PropertyAddress
+
+ALTER TABLE Covid_Research..Nashville
+DROP COLUMN SaleDate
+
+
+
